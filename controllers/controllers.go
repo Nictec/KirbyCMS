@@ -30,6 +30,20 @@ func Index(w http.ResponseWriter, request *http.Request) {
 		http.Redirect(w, request, "/admin/login", 301)
 		return
 	}
+}
+
+func NewVideo(w http.ResponseWriter, request *http.Request){
+	switch request.Method{
+	case "GET":
+		//logged_in = auth.LoginCheck(store, request)
+		logged_in := true
+		if logged_in {
+			shortcuts.Render(w, "tmpl/newVid.tmpl", basefile, nil)
+		}
+	case "POST":
+		//TODO: Add file handeling and call youtube.NewUpload()		
+	}
+
 } 
 
 

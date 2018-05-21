@@ -9,6 +9,7 @@ import (
     "net/url"
     "os"
     "os/user"
+    "path"
     "path/filepath"
 
     "golang.org/x/net/context"
@@ -16,6 +17,9 @@ import (
     "golang.org/x/oauth2/google"
     "KirbyCMS/shortcuts"
     "google.golang.org/api/youtube/v3"
+    "gopkg.in/mgo.v2/bson"
+    "KirbyCMS/helpers/db"
+    "KirbyCMS/models"
 )
 
 //Auth functions
@@ -98,13 +102,75 @@ func SaveToken(file string, token *oauth2.Token) {
     }
     defer f.Close()
     json.NewEncoder(f).Encode(token)
-} 
+}
 
 //action functions
-func Upload(w http.ResponseWriter, client *http.Client){
-    _, err := youtube.New(client)
+
+//goroutines
+func handleUpload(w http.ResponseWriter, obj interface{}, file interface{}, objId bson.ObjectId){
+    response, err := obj.Media(file).Do()
+    if err != nil {
+        shortcuts.HttpError(w, 500, "fatal error a upload thread: " + err.Error() + "aborting upload")
+        return
+    }
+    c := db.Session.DB("KirbyCMS").C("videos")
+    c.Update(bson.M{"_id":objId}, bson.M{"$set":bson.M{"yt_id":response}})
+    c.Update(bson.M{"_id":objId}, bson.M{"$set":bson.M{"status":"uploaded"}})
+}
+//callable stuff
+/*
+    The following function does the following things:
+    -------------------------------------------------
+
+    1. initializing a new youtube client
+    2. initializing all youtube specific structs
+    3. creating a new request
+    4. opening the cached file
+    5. creating a new db entry for the vid
+    6. opening a new thread and starting the upload
+*/
+func Upload(w http.ResponseWriter, client *http.Client, title string, description string, catId string, filename string, privacy string, keywords string){
+    const MEDIAPATH = "media/videos/"
+    service, err := youtube.New(client)
     if err != nil {
         shortcuts.HttpError(w, 500, "API Error: "+err.Error())
+        return
+    }
+    upload := &youtube.Video{
+        Snippet: &youtube.VideoSnippet{
+            Title: title,
+            Description: description,
+            CategoryId: catId,
+        },
+        Status: &youtube.VideoStatus{PrivacyStatus: privacy},
     }
 
+    // The API returns a 400 Bad Request response if tags is an empty string.
+    if strings.Trim(keywords, "") != "" {
+            upload.Snippet.Tags = strings.Split(*keywords, ",")
+    }
+
+    call := service.Videos.Insert("snippet,status", upload)
+    fullpath := path.Join(MEDIAPATH, filename)
+    file, err := os.Open(fullpath)
+    defer file.Close()
+    if err != nil{
+        shortcuts.HttpError(w, 500, "Error opening cached videofile: " + err.Error())
+        return
+    }
+    c := db.Session.DB("KirbyCMS").C("videos")
+    initData := models.Video{
+        Title: title,
+        Description: description,
+        CatId: catId,
+        Privacy: privacy,
+        Status: "uploading",
+    }
+    initData.Id = bson.NewObjectId()
+    err = c.Insert(initData)
+    if err != nil {
+        http.Error(w, 500, "Database error: "+ err.Error())
+        return
+    }
+    go handleUpload(w, call, file, initData.Id)
 }
