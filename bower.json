@@ -1,0 +1,27 @@
+{
+  "name": "KirbyCMS",
+  "homepage": "https://github.com/nictec/KirbyCMS",
+  "authors": [
+    "Nictec <nicnac9911@gmail.com>"
+  ],
+  "description": "CMS system for Kirbyslinschwert",
+  "main": "index.html",
+  "keywords": [
+    "youtube",
+    "twitter",
+    "manager",
+    "cms"
+  ],
+  "license": "MIT",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "gentelella": "^1.4.0"
+  }
+}
